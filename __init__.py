@@ -1,105 +1,70 @@
-from asyncio.log import logger
-import traceback
-import io
-import subprocess 
-import os
-import json 
-import logging 
-import sys 
-import importlib
-from time import time 
-from contextlib import redirect_stdout 
-from pathlib import Path 
-from configparser import BasicInterpolation, ConfigParser
-from math import * 
+
 import bpy 
-import addon_utils
+import os 
 
-item_list = [
-    'Prism Ares', 'Prism Ghost', 'Prism Knife', 'Prism Phantom', 'Prism Operator', 'Prism Spectre'
-]
+from bpy.types import Operator 
+from bpy.props import (EnumProperty)
 
-Selected_item = ''
+bl_info = {
+    "name": "VMS",
+    "catergory": "Import and Downloader"
+} 
 
-
-_TEXTURE_FORMAT = ".png" #Can have DDS, TGA, PNG
-_SAVE_JSON = False
-_APPEND = True
-_DEBUG = False
-_FOR_UPLOAD = True
-_PROP_CHECK = False
-
-stdout = io.StringIO()
-os.system("cls")
-sys.dont_write_bytecode = True
-
-CWD = Path(bpy.context.space_data.text.filepath).parent
-VAL_EXPORT_FOLDER = os.path.join(CWD, "export")
-JSON_FOLDER = Path(os.path.join(CWD, "export", "JSONs"))
-JSON_FOLDER.mkdir(parents=True, exist_ok=True)
-
-config = ConfigParser(interpolation=BasicInterpolation())
-config.read(os.path.join(CWD.__str__(), 'settings.ini'))
-
-VAL_KEY = config["VALORANT"]["UE_AES"]
-VAL_PAKS_PATH = config["VALORANT"]["PATH"]
-WHITE_RGB = (1, 1, 1, 1)
-BLACK_RGB = (0, 0, 0, 0)
-
-LOGFILE = os.path.join(CWD, 'yo.log')
-
-if Path(LOGFILE).exists():
-    with open(LOGFILE, "r+") as f:
-        f.truncate(0)
-
-try:
-    logger
-except NameError:
-    logger = logging.getLogger("yo")
-    logger.setLevel(logging.info)
+class vms_search_local(Operator):
+    bl_idname = "vms.searchlocal"
+    bl_label = "Search Skins"
+    bl_property = "loc_search"
     
-    fh = logging.FileHandler(LOGFILE)
-    fh.setLevel(logging.DEBUG)
+    folder = bpy.path.abspath("C:\\Users\\user\\Desktop\\valimptestfolder")
+    blends = [f for f in os.listdir(folder) if f.endswith(".blend")]
     
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    items = ()
+    
+    for blend in blends:
+        blend_path = os.path.join(folder, blend)
+        with bpy.data.libraries.load(blend_path) as (data_from, _):
+            for c in data_from.collections:
+                collitem = (c, c, "")
+                items = (collitem,) + items
+    
+    loc_search: EnumProperty(
+        name="Local Search",
+        items = items,
+    )
+    
+    def execute(self, context):
+        return {"FINISHED"}
+    
+    def invoke(self, context, event):
+        context.window_manager.invoke_search_popup(self)
+        return {"RUNNING_MODAL"}
+        
 
-    formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+class vms_main(bpy.types.Panel):
+    bl_label = "VMS"
+    bl_idname = __name__
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "VMS"
+    bl_label = "VMS"
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        layout.operator(vms_search_local.bl_idname, text = "Search Skins", icon="SORT_ASC")
 
-    if logger.handlers.__len__() == 0:
-        logger.addHandler(fh)
-        logger.addHandler(ch)
+classes = (
+    vms_search_local,
+    vms_main,
+)
 
-try:
-    sys.path.append(os.path.join(CWD.__str__()))
-    sys.path.append(os.path.join(CWD.__str__(), "utils"))
-
-    from utils import _umaplist
-    from utils import blenderUtils
-    from utils import common
-    from utils.UE4Parse.Objects.EUEVersion import EUEVersion
-    from utils.UE4Parse.provider.Provider import Provier, FGame
-
-    importlib.reload(_umaplist)
-    importlib.reload(blenderUtils)
-    importlib.reload(common)
-except Exception:
-    traceback.print_exc()
-
-def timer(func):
-    def wrap_func(*args, **kwargs):
-        t1 = time()
-        result = func(*args, **kwargs)
-        t2 = time()
-        logger.info(f'Function {func.__name__!r} executed in {(t2-t1):.3f}s')
-        return result
-    return wrap_func
-
-def shorten_path(file_path, length):
-    return f'..\{Path(*Path(file_path).parts[-length:])}'
-
-def save_json(p: str, d):
-    with open(p, 'w') as jsonfile:
-        pass
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+        
+if __name__ == "__main__":
+    register()
